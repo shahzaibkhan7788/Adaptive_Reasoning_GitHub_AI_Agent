@@ -2,6 +2,7 @@ import os
 import re
 import numpy as np
 import json
+import time
 from mistralai import Mistral
 from dotenv import load_dotenv
 
@@ -44,17 +45,39 @@ class NativeVectorStore:
             raise ValueError("Mistral API Key not set")
             
         print(f"Generating embeddings for {len(texts)} chunks...")
-        embeddings_batch_response = client.embeddings.create(
-            model="mistral-embed",
-            inputs=texts
-        )
-        
-        for i, text in enumerate(texts):
-            vector = embeddings_batch_response.data[i].embedding
-            self.documents.append({
-                "text": text,
-                "vector": np.array(vector)
-            })
+
+        # Batch settings: allow override via env var MISTRAL_EMBED_BATCH_SIZE
+        try:
+            batch_size = int(os.getenv("MISTRAL_EMBED_BATCH_SIZE", "64"))
+        except Exception:
+            batch_size = 64
+
+        def _call_embeddings(batch_inputs):
+            # Simple retry/backoff for transient API errors
+            max_retries = 3
+            backoff = 1.0
+            for attempt in range(1, max_retries + 1):
+                try:
+                    return client.embeddings.create(model="mistral-embed", inputs=batch_inputs)
+                except Exception as e:
+                    if attempt == max_retries:
+                        raise
+                    time.sleep(backoff)
+                    backoff *= 2
+
+        for start in range(0, len(texts), batch_size):
+            end = start + batch_size
+            batch = texts[start:end]
+            print(f"Requesting embeddings for batch {start}-{end} (size={len(batch)})")
+            resp = _call_embeddings(batch)
+
+            # Append embeddings in order
+            for i, text in enumerate(batch):
+                vector = resp.data[i].embedding
+                self.documents.append({
+                    "text": text,
+                    "vector": np.array(vector)
+                })
             
     def similarity_search(self, query, k=3):
         if not client:
