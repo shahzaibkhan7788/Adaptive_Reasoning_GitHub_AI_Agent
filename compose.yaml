@@ -1,0 +1,6 @@
+services:
+  adaptivereasoninggithubaiagent:
+    image: adaptivereasoninggithubaiagent
+    build:
+      context: .
+      dockerfile: ./Dockerfile
