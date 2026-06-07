@@ -50,12 +50,16 @@ jobs:
   build-and-push-docker:
     runs-on: ubuntu-latest
     needs: test-and-log
-    # Only build the docker container on actual code changes, not issue edits
     if: github.event_name == 'push' || github.event_name == 'pull_request'
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      # 🚀 FIX: Convert the repository name to lowercase and save it as an environment variable
+      - name: Downcase Repository Name
+        run: |
+          echo "REPO_LOWER=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -73,7 +77,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          # Tags it as 'latest' and with the unique Git commit ID hash
+          # 🚀 FIX: Use the lowercase variable 'env.REPO_LOWER' instead of 'github.repository'
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/${{ env.REPO_LOWER }}:latest
+            ghcr.io/${{ env.REPO_LOWER }}:${{ github.sha }}
