@@ -21,7 +21,7 @@ An intelligent GitHub repository assistant powered by **Mistral AI** that adapts
 - **Multi-Repository Support**: Switch between multiple repositories seamlessly
 
 ### 🎤 Voice & Interaction
-- **Voice Input**: Speak your questions (integrated microphone button)
+- **Voice Input**: Speak your questions (integrated microphone button), this feature is not added yet
 - **Voice Output**: Optional text-to-speech responses
 - **Real-time Streaming**: Token-by-token response rendering
 - **ChatGPT-like UI**: Clean, modern interface with voice popover
