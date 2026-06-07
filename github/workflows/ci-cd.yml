@@ -1,0 +1,79 @@
+name: CI/CD Build and Package
+
+# 1. Trigger the workflow on pushes to main or when issues are modified
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  issues:
+    types: [ opened, edited ]
+
+# Allow the workflow to write packages back to your GitHub repository
+permissions:
+  contents: read
+  packages: write
+  issues: write
+
+jobs:
+  # JOB 1: Test Python code and log repository events
+  test-and-log:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Use CPU torch optimization inside GitHub runner just like local
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Code Verification (Lint/Test)
+        run: |
+          echo "Verifying codebase syntax..."
+          python -m compileall .
+
+      - name: Log Issue Trigger
+        if: github.event_name == 'issues'
+        run: |
+          echo "Automation triggered by Issue: #${{ github.event.issue.number }}"
+          echo "Issue Title: ${{ github.event.issue.title }}"
+
+  # JOB 2: Build and Push Docker Image (Only runs if Job 1 succeeds)
+  build-and-push-docker:
+    runs-on: ubuntu-latest
+    needs: test-and-log
+    # Only build the docker container on actual code changes, not issue edits
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          # Tags it as 'latest' and with the unique Git commit ID hash
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
